@@ -15,34 +15,38 @@ extern crate eject;
 #[command(author="Mia")]
 struct Cli{
     #[arg(short, long)]
+    //Defines the output filename
     output: String,
 
     #[arg(short,long,default_value_t=str::to_string("sr0"))]
+    //Defines the drive to be used (should be improved to decide automatically)
     drive: String,
 
     #[arg(short,long,default_value_t=str::to_string("192k"))]
+    //Bitrate for ffmpeg export
     bitrate: String
 }
 
 fn main(){
-
     let cli = Cli::parse();
 
-    let mut software = CDACopy::new(cli);
+    let mut cda_copy = CDACopy::new(cli);
 
-    software.prepare_disk_drive();
-    software.get_track_list();
-    software.create_temp_folder();
-    software.aquire_tags();
-    software.copy_to_temp_folder();
-    software.combine_files();
-    software.convert2mp3();
-    software.write_id3_tags();
-    software.remove_tmp_folder();
+    cda_copy.prepare_disk_drive();
+    cda_copy.get_track_list();
+    cda_copy.create_temp_folder();
+    cda_copy.aquire_tags();
+    cda_copy.copy_to_temp_folder();
+    cda_copy.combine_files();
+    cda_copy.convert2mp3();
+    cda_copy.write_id3_tags();
+    cda_copy.remove_tmp_folder();
 }
 
 
 fn sys_time_in_secs()->u64{
+    //!Returns the System Time in seconds since the Unix Epoch (01/01/1970)
+
     match time::SystemTime::now().duration_since(time::SystemTime::UNIX_EPOCH) {
         Ok(n) => n.as_secs(),
         Err(_) => panic!("SystemTime before UNIX EPOCH!"),
@@ -82,9 +86,11 @@ impl CDACopy{
 
 
     fn prepare_disk_drive(&mut self){
+        //!Checks if the disk drive is open, closes it if necessary,
+        //! mounts the selected disk drive
         if self.drive_dev.status().unwrap() == DriveStatus::TrayOpen{
             self.toggle_eject_disc();
-        }
+        };
         self.drive_str = format!("cdda://{}/",self.drive).to_string();
 
         match Command::new("gio").args(["mount",&self.drive_str]).output(){
@@ -95,6 +101,7 @@ impl CDACopy{
 
 
     fn get_track_list(&mut self){
+        //!Reads a list of all files using gio and converts it into a Vector
         let tracklist = Command::new("gio").args(["list",&self.drive_str]).output().expect("Failed to read tracks on disk.\n").stdout;
         match String::from_utf8(tracklist){
             Ok(result) => self.tracklist = result.lines().map(str::to_string).collect(),
@@ -105,12 +112,17 @@ impl CDACopy{
 
 
     fn create_temp_folder(&mut self){
+        //!Creates a temporary folder (comprised of .tmp and the unix timestamp)
         self.temp_folder_name = format!("{}{}",".tmp",sys_time_in_secs());
         fs::create_dir(&self.temp_folder_name).expect("Couldn't create a temp folder\n");
     }
 
 
     fn copy_to_temp_folder(&self){
+        //!Copies files from the tracklist into the temporary folder
+        //! 
+        //! Due to some issues encountered during writing, this happens by 
+        //! reading an entire file into memory and writing it from memory.
         let mut track_counter = 0;
         for track in &self.tracklist{
             let target_loc = format!("{}{}{}",self.temp_folder_name,"/",&track);
@@ -129,6 +141,7 @@ impl CDACopy{
 
 
     fn combine_files(&self){
+        //!Combines the copied files using sox into `tmp.wav`
         let mut command_opts:Vec<String> = vec![];
         for track in &self.tracklist{
             command_opts.push(format!("{}/{}",self.temp_folder_name,track.to_string().replace(" ", "\\ ")));
@@ -143,17 +156,20 @@ impl CDACopy{
     }
 
     fn remove_tmp_folder(&self){
+        //!Deletes the temporary folder
         match fs::remove_dir_all(&self.temp_folder_name){
             Ok(_result) => println!("Removed temporary files"),
-            Err(error) => println!("Error removing temporary files: {}",error)
+            Err(error) => panic!("Error removing temporary files: {}",error)
         };
     }
 
     fn convert2mp3(&self){
+        //!Converts the combined wav file into mp3 using ffmpeg
         Command::new("ffmpeg").args(["-y","-i",&format!("{}/{}",self.temp_folder_name, "tmp.wav"), "-b:a", &self.bitrate, "-c:a","mp3",&self.output]).output().expect("Failed to convert audio file format\n");
     }
 
     fn aquire_tags(&mut self){
+        //!Asks the user to input the ID3 tags for writing into the file later
         println!("Insert ID3 Tags:");
         print!("Title: ");
         self.id3_tags.insert(
@@ -176,12 +192,11 @@ impl CDACopy{
             "year".to_string(),
             year_tag.to_string()
         );
-
-        //println!("{:?}",self.id3_tags);
     }
 
 
     fn write_id3_tags(&self){
+        //!Writes the ID3 tags into the final mp3 file
         let mut tag = Tag::new();
         tag.set_album(self.id3_tags.get("album").unwrap());
         tag.set_title(self.id3_tags.get("title").unwrap());
