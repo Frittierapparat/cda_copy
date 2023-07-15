@@ -18,3 +18,4 @@ Cargo.lock
 .tmp*
 Cargo.lock
 >>>>>>> 2e338da (Initial Commit)
+*.mp3

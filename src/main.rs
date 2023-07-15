@@ -30,7 +30,7 @@ struct Cli{
 fn main(){
     let cli = Cli::parse();
 
-    let mut cda_copy = CDACopy::new(cli);
+    let mut cda_copy = CDACopy::new(cli.drive, cli.output, cli.bitrate);
 
     cda_copy.prepare_disk_drive();
     cda_copy.get_track_list();
@@ -64,18 +64,18 @@ pub struct CDACopy{
     id3_tags: HashMap<String,String>
 }
 impl CDACopy{
-    fn new(cli:Cli)->CDACopy{
+    fn new(drive: String, output: String, bitrate:String)->CDACopy{
         let drive_dev:Device;
-        match Device::open(format!("/dev/{}", cli.drive)) {
+        match Device::open(format!("/dev/{}", drive)) {
             Ok(result) => drive_dev = result,
             Err(err) => {
                 panic!("Drive not found: {}", err)
             }
         }
 
-        CDACopy{drive:String::from(&cli.drive),
-                output:String::from(&cli.output), 
-                bitrate: String::from(&cli.bitrate),
+        CDACopy{drive:String::from(&drive),
+                output:String::from(&output), 
+                bitrate: String::from(&bitrate),
                 temp_folder_name:"".to_string(), 
                 tracklist:vec![], 
                 drive_str:"".to_string(),
