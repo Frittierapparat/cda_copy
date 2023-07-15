@@ -8,17 +8,14 @@ use id3::{Tag, TagLike, Version};
 use clap::Parser;
 use eject::device::{Device, DriveStatus};
 use read_input::prelude::*;
-extern crate eject;
 
 #[derive(Parser)]
 #[command(name = "cda_copy")]
 #[command(author="Mia")]
 struct Cli{
-    #[arg(short, long)]
     //Defines the output filename
     output: String,
 
-    #[arg(short,long,default_value_t=str::to_string("sr0"))]
     //Defines the drive to be used (should be improved to decide automatically)
     drive: String,
 
@@ -136,7 +133,7 @@ impl CDACopy{
 
 
     fn toggle_eject_disc(&self){
-        self.drive_dev.toggle_eject().unwrap();
+        self.drive_dev.toggle_eject().expect("Failed to toggle the Disk tray!");
     }
 
 
