@@ -31,8 +31,8 @@ fn main(){
 
     cda_copy.prepare_disk_drive();
     cda_copy.get_track_list();
-    cda_copy.create_temp_folder();
     cda_copy.aquire_tags();
+    cda_copy.create_temp_folder();
     cda_copy.copy_to_temp_folder();
     cda_copy.combine_files();
     cda_copy.convert2mp3();
@@ -63,11 +63,13 @@ pub struct CDACopy{
 impl CDACopy{
     fn new(drive: String, output: String, bitrate:String)->CDACopy{
         let drive_dev:Device;
-        match Device::open(format!("/dev/{}", drive)) {
-            Ok(result) => drive_dev = result,
-            Err(err) => {
-                panic!("Drive not found: {}", err)
-            }
+
+        match Device::open(format!("/dev/{}", drive)){
+            Ok(dev) => drive_dev = dev,
+            Err(_) =>{
+                println!("Drive not found, exiting…");
+                std::process::exit(-1)
+            } 
         }
 
         CDACopy{drive:String::from(&drive),
