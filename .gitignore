@@ -17,5 +17,6 @@ Cargo.lock
 /target
 .tmp*
 Cargo.lock
+.vscode/
 >>>>>>> 2e338da (Initial Commit)
 *.mp3
