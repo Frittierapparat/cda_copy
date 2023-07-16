@@ -119,14 +119,11 @@ impl CDACopy{
 
     fn copy_to_temp_folder(&self){
         //!Copies files from the tracklist into the temporary folder
-        //! 
-        //! Due to some issues encountered during writing, this happens by 
-        //! reading an entire file into memory and writing it from memory.
         let mut track_counter = 0;
         for track in &self.tracklist{
+            let origin_loc = format!("/run/user/1000/gvfs/cdda:host={}/{}",&self.drive,&track);
             let target_loc = format!("{}{}{}",self.temp_folder_name,"/",&track);
-            let data = fs::read(format!("/run/user/1000/gvfs/cdda:host={}/{}",&self.drive,&track)).expect("Reading track failed\n");
-            fs::write(&target_loc, data).expect("Writing track failed\n");
+            fs::copy(origin_loc, target_loc).unwrap();
             track_counter+=1;
             println!("Copied {:?} ({}/{})", &track, &track_counter, &self.tracklist.len());
         }
