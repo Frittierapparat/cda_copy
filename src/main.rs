@@ -8,7 +8,7 @@ use id3::{Tag, TagLike, Version};
 use clap::Parser;
 use eject::device::{Device, DriveStatus};
 use read_input::prelude::*;
-use wav_concat;
+use wav_concat::wav_concat;
 
 
 #[derive(Parser)]
@@ -142,8 +142,10 @@ impl CDACopy{
         //!Combines the copied files using sox into `tmp.wav`
         let mut files:Vec<String> = vec![];
         for track in &self.tracklist{
-            files.push(format!("{}/{}",self.temp_folder_name,track.to_string().replace(" ", "\\ ")));
+            files.push(format!("{}/{}", self.temp_folder_name,track.to_string()));
         }
+        wav_concat::wav_concat(files, format!("{}/{}",self.temp_folder_name, "tmp.wav"));
+        println!("Successfully combined files")
         //wav_concat::wav_concat()
         /*files.push(format!("{}/{}",self.temp_folder_name, "tmp.wav"));
 
@@ -165,6 +167,7 @@ impl CDACopy{
     fn convert2mp3(&self){
         //!Converts the combined wav file into mp3 using ffmpeg
         Command::new("ffmpeg").args(["-y","-i",&format!("{}/{}",self.temp_folder_name, "tmp.wav"), "-b:a", &self.bitrate, "-c:a","mp3",&self.output]).output().expect("Failed to convert audio file format\n");
+        println!("Successfully converted to mp3")
     }
 
     fn aquire_tags(&mut self){
