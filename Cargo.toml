@@ -10,4 +10,4 @@ id3 = "1.7.0"
 clap = {version = "4.3.12", features = ["derive"]}
 eject = "0.1.1"
 read_input = "0.8"
-wav_concat = {path="../wav_concat/"}
+wav_concat = {git="https://github.com/Frittierapparat/wav_concat", branch="main"}
