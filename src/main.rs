@@ -8,6 +8,8 @@ use id3::{Tag, TagLike, Version};
 use clap::Parser;
 use eject::device::{Device, DriveStatus};
 use read_input::prelude::*;
+use wav_concat;
+
 
 #[derive(Parser)]
 #[command(name = "cda_copy")]
@@ -138,17 +140,18 @@ impl CDACopy{
 
     fn combine_files(&self){
         //!Combines the copied files using sox into `tmp.wav`
-        let mut command_opts:Vec<String> = vec![];
+        let mut files:Vec<String> = vec![];
         for track in &self.tracklist{
-            command_opts.push(format!("{}/{}",self.temp_folder_name,track.to_string().replace(" ", "\\ ")));
+            files.push(format!("{}/{}",self.temp_folder_name,track.to_string().replace(" ", "\\ ")));
         }
-        command_opts.push(format!("{}/{}",self.temp_folder_name, "tmp.wav"));
+        //wav_concat::wav_concat()
+        /*files.push(format!("{}/{}",self.temp_folder_name, "tmp.wav"));
 
 
-        match Command::new("sox").args(command_opts).spawn(){
+        match Command::new("sox").args(files).spawn(){
             Ok(_) => println!("Successfully combined files"),
             Err(error) => panic!("Error combining files: {}", error)
-        };
+        };*/
     }
 
     fn remove_tmp_folder(&self){
