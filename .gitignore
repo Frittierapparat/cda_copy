@@ -20,3 +20,4 @@ Cargo.lock
 .vscode/
 >>>>>>> 2e338da (Initial Commit)
 *.mp3
+src/cda_copy.code-workspace
