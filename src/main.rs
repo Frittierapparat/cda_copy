@@ -1,5 +1,6 @@
 use std::process::Command;
 use std::fs;
+use std::process::exit;
 use std::time;
 use std::vec;
 use std::collections::HashMap;
@@ -7,6 +8,7 @@ use id3::Timestamp;
 use id3::{Tag, TagLike, Version};
 use clap::Parser;
 use eject::device::{Device, DriveStatus};
+use eject::discovery::cd_drives;
 use read_input::prelude::*;
 use wav_concat::wav_concat;
 
@@ -19,11 +21,15 @@ struct Cli{
     output: String,
 
     //Defines the drive to be used (should be improved to decide automatically)
+    #[arg(short,long, default_value_t=str::to_string("sr0"))]
     drive: String,
 
     #[arg(short,long,default_value_t=str::to_string("192k"))]
     //Bitrate for ffmpeg export
-    bitrate: String
+    bitrate: String,
+
+    #[arg(short,long)]
+    skip_tagging: bool
 }
 
 fn main(){
@@ -33,12 +39,12 @@ fn main(){
 
     cda_copy.prepare_disk_drive();
     cda_copy.get_track_list();
-    cda_copy.aquire_tags();
+    if cli.skip_tagging {} else{cda_copy.aquire_tags()};
     cda_copy.create_temp_folder();
     cda_copy.copy_to_temp_folder();
     cda_copy.combine_files();
     cda_copy.convert2mp3();
-    cda_copy.write_id3_tags();
+    if cli.skip_tagging{} else{cda_copy.write_id3_tags()};
     cda_copy.remove_tmp_folder();
 }
 
@@ -65,23 +71,33 @@ pub struct CDACopy{
 impl CDACopy{
     fn new(drive: String, output: String, bitrate:String)->CDACopy{
         let drive_dev:Device;
+        let drive_str: String;
+        let drive_name: String;
 
         match Device::open(format!("/dev/{}", drive)){
-            Ok(dev) => drive_dev = dev,
+            Ok(dev) => {
+                drive_dev = dev;
+                drive_name = drive;
+                drive_str = format!("cdda://{}/",&drive_name);
+            }
             Err(_) =>{
-                println!("Drive not found, exiting…");
-                std::process::exit(-1)
+                println!("Drive not found, trying other drives…");
+                let selected_drive = cd_drives().unwrap().next().unwrap();
+                drive_dev = Device::open(&selected_drive).unwrap();
+                let idx = selected_drive.to_string_lossy().find("sr").unwrap();
+                drive_name = String::from_utf8(selected_drive.to_string_lossy().as_bytes()[idx..].to_vec()).unwrap();
+                drive_str = format!("cdda://{}/",&drive_name);
             } 
         }
-
-        CDACopy{drive:String::from(&drive),
-                output:String::from(&output), 
-                bitrate: String::from(&bitrate),
-                temp_folder_name:"".to_string(), 
-                tracklist:vec![], 
-                drive_str:"".to_string(),
-                drive_dev:drive_dev,
-                id3_tags: HashMap::new()
+        CDACopy{
+            drive:drive_name,
+            output:String::from(&output), 
+            bitrate: String::from(&bitrate),
+            temp_folder_name:"".to_string(), 
+            tracklist:vec![], 
+            drive_str:drive_str,
+            drive_dev:drive_dev,
+            id3_tags: HashMap::new()
             }
     }
 
@@ -92,7 +108,6 @@ impl CDACopy{
         if self.drive_dev.status().unwrap() == DriveStatus::TrayOpen{
             self.toggle_eject_disc();
         };
-        self.drive_str = format!("cdda://{}/",self.drive).to_string();
 
         match Command::new("gio").args(["mount",&self.drive_str]).output(){
             Ok(_) => println!("Sucessfully mounted drive"),
@@ -105,7 +120,15 @@ impl CDACopy{
         //!Reads a list of all files using gio and converts it into a Vector
         let tracklist = Command::new("gio").args(["list",&self.drive_str]).output().expect("Failed to read tracks on disk.\n").stdout;
         match String::from_utf8(tracklist){
-            Ok(result) => self.tracklist = result.lines().map(str::to_string).collect(),
+            Ok(result) => {
+                if result.len() > 0{
+                    self.tracklist = result.lines().map(str::to_string).collect()
+                }
+                else{
+                    println!("No Tracks were found. Exiting...");
+                    exit(1)
+                }
+            },
             Err(err) => panic!("Failed to obtain tracklist: {}", err)
         }
         println!("Found {} Tracks", &self.tracklist.len());
@@ -123,7 +146,7 @@ impl CDACopy{
         //!Copies files from the tracklist into the temporary folder
         let mut track_counter = 0;
         for track in &self.tracklist{
-            let origin_loc = format!("/run/user/1000/gvfs/cdda:host={}/{}",&self.drive,&track);
+            let origin_loc = format!("/run/user/1000/gvfs/cdda:host={}/{}",&self.drive,&track.escape_debug());
             let target_loc = format!("{}{}{}",self.temp_folder_name,"/",&track);
             fs::copy(origin_loc, target_loc).unwrap();
             track_counter+=1;
@@ -146,14 +169,6 @@ impl CDACopy{
         }
         wav_concat::wav_concat(files, format!("{}/{}",self.temp_folder_name, "tmp.wav"));
         println!("Successfully combined files")
-        //wav_concat::wav_concat()
-        /*files.push(format!("{}/{}",self.temp_folder_name, "tmp.wav"));
-
-
-        match Command::new("sox").args(files).spawn(){
-            Ok(_) => println!("Successfully combined files"),
-            Err(error) => panic!("Error combining files: {}", error)
-        };*/
     }
 
     fn remove_tmp_folder(&self){
