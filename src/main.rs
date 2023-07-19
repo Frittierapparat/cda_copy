@@ -1,17 +1,14 @@
-use std::process::Command;
+use std::process::{Command, exit};
 use std::fs;
-use std::process::exit;
 use std::time;
 use std::vec;
 use std::collections::HashMap;
-use id3::Timestamp;
-use id3::{Tag, TagLike, Version};
+use id3::{Tag, TagLike, Version, Timestamp};
 use clap::Parser;
 use eject::device::{Device, DriveStatus};
 use eject::discovery::cd_drives;
 use read_input::prelude::*;
 use wav_concat::wav_concat;
-
 
 #[derive(Parser)]
 #[command(name = "cda_copy")]
@@ -51,7 +48,6 @@ fn main(){
 
 fn sys_time_in_secs()->u64{
     //!Returns the System Time in seconds since the Unix Epoch (01/01/1970)
-
     match time::SystemTime::now().duration_since(time::SystemTime::UNIX_EPOCH) {
         Ok(n) => n.as_secs(),
         Err(_) => panic!("SystemTime before UNIX EPOCH!"),
