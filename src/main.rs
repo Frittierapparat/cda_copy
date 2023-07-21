@@ -129,7 +129,7 @@ impl CDACopy{
         for i in 0..*disk_num{
             temp_file_vec.push(format!("tmp{:03}.wav", i))
         }
-        println!("{:?}", temp_file_vec);
+        //println!("{:?}", temp_file_vec);
         CDACopy{
             drive:drive_name,
             output:String::from(&output), 
