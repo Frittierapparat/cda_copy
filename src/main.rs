@@ -1,3 +1,4 @@
+use std::io::{stdout, Write, Read, stdin};
 use std::process::{Command, exit};
 use std::fs;
 use std::time;
@@ -26,26 +27,62 @@ struct Cli{
     bitrate: String,
 
     #[arg(short,long)]
-    skip_tagging: bool
+    skip_tagging: bool,
+
+    #[arg(short,long, default_value_t=1)]
+    num_disks: u16
 }
 
 fn main(){
     let cli = Cli::parse();
 
-    let mut cda_copy = CDACopy::new(cli.drive, cli.output, cli.bitrate);
-
-    cda_copy.prepare_disk_drive();
-    cda_copy.get_track_list();
+    let mut cda_copy = CDACopy::new(cli.drive, cli.output, cli.bitrate, &cli.num_disks);
+    let temp_file_list = &cda_copy.temp_files.to_vec();
+    //cda_copy.prepare_disk_drive();
+    //cda_copy.get_track_list();
+    //if cli.skip_tagging {} else{cda_copy.aquire_tags()};
+    //cda_copy.create_temp_folder();
+    //cda_copy.copy_to_temp_folder();
+    //cda_copy.combine_files();
+    //cda_copy.convert2mp3();
+    //if cli.skip_tagging{} else{cda_copy.write_id3_tags()};
+    //cda_copy.remove_tmp_folder();
     if cli.skip_tagging {} else{cda_copy.aquire_tags()};
     cda_copy.create_temp_folder();
-    cda_copy.copy_to_temp_folder();
-    cda_copy.combine_files();
+    for disk in 0..cli.num_disks{
+        //println!("{}", disk);
+        cda_copy.prepare_disk_drive();
+        cda_copy.get_track_list();
+        cda_copy.copy_to_temp_folder();
+        //println!("{:?}", &cda_copy.tracklist);
+
+        let mut copied_filelist: Vec<String> = vec![];
+        for track in &cda_copy.tracklist{
+            copied_filelist.push(format!("{}/{}", &cda_copy.temp_folder_name, track));
+        }
+        cda_copy.combine_files(String::from(&cda_copy.temp_files[disk as usize]), &copied_filelist);
+        cda_copy.clean_tmp_folder();
+        if disk < cli.num_disks -1 {pause()};
+    }
+    //println!("{:?}", temp_file_list);
+    let mut final_file_list: Vec<String> = vec![];
+    for file in temp_file_list{
+        final_file_list.push(format!("{}/{}", &cda_copy.temp_folder_name, file))
+    }
+    cda_copy.combine_files("tmp.wav".to_string(), &final_file_list);
     cda_copy.convert2mp3();
     if cli.skip_tagging{} else{cda_copy.write_id3_tags()};
-    cda_copy.remove_tmp_folder();
+    cda_copy.remove_tmp_folder()
 }
 
 
+fn pause()
+{
+    let mut stdout = stdout();
+    stdout.write(b"Press any Key once you have inserted the next disk").unwrap();
+    stdout.flush().unwrap();
+    stdin().read(&mut [0]).unwrap();
+}
 fn sys_time_in_secs()->u64{
     //!Returns the System Time in seconds since the Unix Epoch (01/01/1970)
     match time::SystemTime::now().duration_since(time::SystemTime::UNIX_EPOCH) {
@@ -61,11 +98,12 @@ pub struct CDACopy{
     pub drive_dev: Device,
     drive_str: String,
     temp_folder_name: String,
+    temp_files: Vec<String>,
     tracklist: Vec<String>,
     id3_tags: HashMap<String,String>
 }
 impl CDACopy{
-    fn new(drive: String, output: String, bitrate:String)->CDACopy{
+    fn new(drive: String, output: String, bitrate:String, disk_num: &u16)->CDACopy{
         let drive_dev:Device;
         let drive_str: String;
         let drive_name: String;
@@ -85,11 +123,19 @@ impl CDACopy{
                 drive_str = format!("cdda://{}/",&drive_name);
             } 
         }
+
+
+        let mut temp_file_vec: Vec<String> = vec![];
+        for i in 0..*disk_num{
+            temp_file_vec.push(format!("tmp{:03}.wav", i))
+        }
+        println!("{:?}", temp_file_vec);
         CDACopy{
             drive:drive_name,
             output:String::from(&output), 
             bitrate: String::from(&bitrate),
             temp_folder_name:"".to_string(), 
+            temp_files:temp_file_vec,
             tracklist:vec![], 
             drive_str:drive_str,
             drive_dev:drive_dev,
@@ -143,7 +189,7 @@ impl CDACopy{
         let mut track_counter = 0;
         for track in &self.tracklist{
             let origin_loc = format!("/run/user/1000/gvfs/cdda:host={}/{}",&self.drive,&track.escape_debug());
-            let target_loc = format!("{}{}{}",self.temp_folder_name,"/",&track);
+            let target_loc = format!("{}/{}",self.temp_folder_name,&track);
             fs::copy(origin_loc, target_loc).unwrap();
             track_counter+=1;
             println!("Copied {:?} ({}/{})", &track, &track_counter, &self.tracklist.len());
@@ -157,14 +203,20 @@ impl CDACopy{
     }
 
 
-    fn combine_files(&self){
+    fn combine_files(&self, tmp_file_name: String, tracklist: &Vec<String>){
         //!Combines the copied files using sox into `tmp.wav`
         let mut files:Vec<String> = vec![];
-        for track in &self.tracklist{
+        for track in tracklist{
             files.push(format!("{}/{}", self.temp_folder_name,track.to_string()));
         }
-        wav_concat::wav_concat(files, format!("{}/{}",self.temp_folder_name, "tmp.wav"));
+        wav_concat::wav_concat(tracklist.to_vec(), format!("{}/{}",self.temp_folder_name, tmp_file_name));
         println!("Successfully combined files")
+    }
+
+    fn clean_tmp_folder(&self){
+        for track in &self.tracklist{
+            fs::remove_file(format!("{}/{}",self.temp_folder_name,track)).unwrap();
+        }
     }
 
     fn remove_tmp_folder(&self){
