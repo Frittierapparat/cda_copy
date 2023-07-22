@@ -188,7 +188,7 @@ impl CDACopy{
         //!Copies files from the tracklist into the temporary folder
         let mut track_counter = 0;
         for track in &self.tracklist{
-            let origin_loc = format!("/run/user/1000/gvfs/cdda:host={}/{}",&self.drive,&track.escape_debug());
+            let origin_loc = format!("/run/user/1000/gvfs/cdda:host={}/{}",&self.drive,&track);
             let target_loc = format!("{}/{}",self.temp_folder_name,&track);
             fs::copy(origin_loc, target_loc).unwrap();
             track_counter+=1;
